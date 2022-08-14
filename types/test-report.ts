@@ -7,7 +7,8 @@ export class TestReport {
     _failedTestsNumber: number;
     passedTestsNumber: number;
     appName: string;
-    suiteName: string
+    suiteName: string;
+    runDate: string;
 
     _totalTestsNumber: number;
 
@@ -29,6 +30,7 @@ export class TestReport {
         this._totalTestsNumber = 0;
         this.appName = "";
         this.suiteName = "";
+        this.runDate = "";
     }
 
     async prepareSuiteTestReport(reportPath: string, currentTestRuns: TestRun[]): Promise<void> {

@@ -1,6 +1,7 @@
 import path from "path";
-import { TestReport } from "./test-report";
+import { TestReport } from "./types/test-report";
 import fs from "fs";
+const extract = require('extract-zip')
 
 const fsPromises = fs.promises;
 
@@ -10,14 +11,74 @@ export class BL {
     }
 
     async ProcessTestResults(): Promise<void> {
-        const groupedTestReports = await this.consolidateTestResults();
+        const pathToCSV = path.join(this.autoReportDir, "Report.csv")
+        const parentPath = path.resolve(__dirname, '..');
+        const autoReportsDir = path.join(parentPath, this.autoReportDir);
 
-        // TODO: delete
-        console.info("groupedTestReports = " + JSON.stringify(groupedTestReports));
+        const allFiles = await fsPromises.readdir(autoReportsDir, { encoding: "utf8" });
 
-        const finalReport = await this.GenerateTestReport(groupedTestReports);
+        const zipFiles = allFiles.filter(zf => zf.split('.')[zf.split('.').length - 1] == "zip");
 
-        await fsPromises.writeFile(path.join(this.autoReportDir, "finalReport.txt"), JSON.stringify(finalReport));
+        if (!zipFiles || (zipFiles && zipFiles.length < 1)) {
+            const err = "No zip files found!";
+
+            console.log('\x1b[31m%s\x1b[0m', err);
+
+            throw new Error(err);
+        }
+
+        await fsPromises.writeFile(pathToCSV, `Automation Report\n`);
+
+        for (const zipFile of zipFiles) {
+            await fsPromises.mkdir(path.join(autoReportsDir, "files"));
+
+            try {
+                const zipFilePath = path.join(parentPath, this.autoReportDir, zipFile);
+
+                await extract(zipFilePath, { dir: path.join(parentPath, this.autoReportDir, "files") })
+
+                console.log('\x1b[36m%s\x1b[0m', `Zip extraction of ${zipFilePath} completed successfully`)
+            } catch (err) {
+                console.log('\x1b[31m%s\x1b[0m', "unzip error: " + err);
+
+                throw new Error("unzip error: " + err);
+            }
+
+            const groupedTestReports = await this.consolidateTestResults();
+
+            const finalReports = await this.GenerateTestReport(groupedTestReports);
+
+            //await fsPromises.writeFile(path.join(this.autoReportDir, "finalReport.json"), JSON.stringify(finalReport));
+
+            await this.writeCSV(pathToCSV, finalReports);
+
+            await fsPromises.rm(path.join(autoReportsDir, "files"), { recursive: true, force: true });
+        }
+    }
+
+    async writeCSV(reportPath: string, testReports: Array<TestReport>): Promise<void> {
+        await fsPromises.appendFile(reportPath, `${testReports[0].appName}\n`);
+
+        for (const testReportAppSuite of testReports) {
+            await fsPromises.appendFile(reportPath, `${testReportAppSuite.appName}.${testReportAppSuite.suiteName}\n`);
+
+            await fsPromises.appendFile(reportPath, `Failed, ${testReportAppSuite.failedTestsNumber}\n`);
+
+            if (testReportAppSuite.faildTestList.length > 0) {
+                fsPromises.appendFile(reportPath, "Test Name, Bug, Owner, Remarks\n");
+            }
+
+            for (const failedTests of testReportAppSuite.faildTestList) {
+
+                fsPromises.appendFile(reportPath, `${failedTests.testName}\n`);
+            }
+
+            await fsPromises.appendFile(reportPath, `passed, ${testReportAppSuite.passedTestsNumber}\n`);
+
+            await fsPromises.appendFile(reportPath, `Total, ${testReportAppSuite.totalTestsNumber}\n`);
+        }
+
+        console.log('\x1b[32m%s\x1b[0m', `${testReports.length} of ${testReports[0].appName} test reports exported successfully to the CSV file ((:`);
     }
 
     private async GenerateTestReport(groupedTestReports: TestReport[][]): Promise<Array<TestReport>> {
@@ -34,6 +95,8 @@ export class BL {
                 consolidatedTestReport.failedTestsNumber;
 
                 consolidatedTestReport.passedTestsNumber += testReport.passedTestsNumber;
+
+                consolidatedTestReport.totalTestsNumber;
             }
 
             finalReport.push(consolidatedTestReport);
@@ -45,12 +108,10 @@ export class BL {
     private async consolidateTestResults(): Promise<TestReport[][]> {
 
         const testReports = new Array<TestReport>();
-        const autoReportDir = path.join(this.autoReportDir, "files");
-        console.log("Files path= " + autoReportDir);
-        const files = await fsPromises.readdir(autoReportDir);
 
-        // TODO: delete
-        console.log("GetConsolidateFiles from: " + autoReportDir + ";" + JSON.stringify(files));
+        const autoReportDir = path.join(this.autoReportDir, "files");
+
+        const files = await fsPromises.readdir(autoReportDir);
 
         for (const file of files) {
             const fileDataString = await fsPromises.readFile(path.join(autoReportDir, file), { encoding: "utf8" });
