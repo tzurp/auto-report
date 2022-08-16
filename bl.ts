@@ -11,6 +11,7 @@ export class BL {
     }
 
     async ProcessTestResults(): Promise<void> {
+        const allResults = new Array<boolean>();
         const pathToCSV = path.join(this.autoReportDir, "Report.csv")
         const parentPath = path.resolve(__dirname, '..');
         const autoReportsDir = path.join(parentPath, this.autoReportDir);
@@ -50,35 +51,48 @@ export class BL {
 
             //await fsPromises.writeFile(path.join(this.autoReportDir, "finalReport.json"), JSON.stringify(finalReport));
 
-            await this.writeCSV(pathToCSV, finalReports);
+            let result = await this.writeCSV(pathToCSV, finalReports);
+
+            allResults.push(result);
 
             await fsPromises.rm(path.join(autoReportsDir, "files"), { recursive: true, force: true });
         }
+
+        if (allResults.filter(r => r == true).length == zipFiles.length) {
+                console.log('\x1b[32m%s\x1b[0m', "All test reports exported successfully to the CSV file ((:");
+        }
+        else {
+            console.log('\x1b[31m%s\x1b[0m', "Some test reports failed to export!!!");
+        }
     }
 
-    async writeCSV(reportPath: string, testReports: Array<TestReport>): Promise<void> {
-        await fsPromises.appendFile(reportPath, `${testReports[0].appName}\n`);
+    async writeCSV(reportPath: string, testReports: Array<TestReport>): Promise<boolean> {
+        try {
+            await fsPromises.appendFile(reportPath, `${testReports[0].appName}\n`);
 
-        for (const testReportAppSuite of testReports) {
-            await fsPromises.appendFile(reportPath, `${testReportAppSuite.appName}.${testReportAppSuite.suiteName}\n`);
+            for (const testReportAppSuite of testReports) {
+                await fsPromises.appendFile(reportPath, `${testReportAppSuite.appName}.${testReportAppSuite.suiteName}\n`);
 
-            await fsPromises.appendFile(reportPath, `Failed, ${testReportAppSuite.failedTestsNumber}\n`);
+                await fsPromises.appendFile(reportPath, `Failed, ${testReportAppSuite.failedTestsNumber}\n`);
 
-            if (testReportAppSuite.faildTestList.length > 0) {
-                fsPromises.appendFile(reportPath, "Test Name, Bug, Owner, Remarks\n");
+                if (testReportAppSuite.faildTestList.length > 0) {
+                    fsPromises.appendFile(reportPath, "Test Name, Bug, Owner, Remarks\n");
+                }
+
+                for (const failedTests of testReportAppSuite.faildTestList) {
+
+                    fsPromises.appendFile(reportPath, `${failedTests.testName}\n`);
+                }
+
+                await fsPromises.appendFile(reportPath, `passed, ${testReportAppSuite.passedTestsNumber}\n`);
+
+                await fsPromises.appendFile(reportPath, `Total, ${testReportAppSuite.totalTestsNumber}\n`);
             }
-
-            for (const failedTests of testReportAppSuite.faildTestList) {
-
-                fsPromises.appendFile(reportPath, `${failedTests.testName}\n`);
-            }
-
-            await fsPromises.appendFile(reportPath, `passed, ${testReportAppSuite.passedTestsNumber}\n`);
-
-            await fsPromises.appendFile(reportPath, `Total, ${testReportAppSuite.totalTestsNumber}\n`);
         }
-
-        console.log('\x1b[32m%s\x1b[0m', `${testReports.length} of ${testReports[0].appName} test reports exported successfully to the CSV file ((:`);
+        catch (err) {
+            throw new Error(`writeCSV error: ${err}`);
+        }
+        return true;
     }
 
     private async GenerateTestReport(groupedTestReports: TestReport[][]): Promise<Array<TestReport>> {
