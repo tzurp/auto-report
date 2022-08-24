@@ -105,14 +105,12 @@ export class BL {
 
             for (const testReport of appSuiteGroupTestReports) {
                 consolidatedTestReport.faildTestList.push(...testReport.faildTestList);
-
-                consolidatedTestReport.failedTestsNumber;
-
                 consolidatedTestReport.passedTestsNumber += testReport.passedTestsNumber;
-
-                consolidatedTestReport.totalTestsNumber;
             }
+            consolidatedTestReport.failedTestsNumber;
 
+            consolidatedTestReport.totalTestsNumber;
+            
             finalReport.push(consolidatedTestReport);
         }
 
@@ -120,12 +118,18 @@ export class BL {
     }
 
     private async consolidateTestResults(): Promise<TestReport[][]> {
-
+        let files = new Array<string>();
         const testReports = new Array<TestReport>();
 
         const autoReportDir = path.join(this.autoReportDir, "files");
 
-        const files = await fsPromises.readdir(autoReportDir);
+        try {
+            files = await fsPromises.readdir(autoReportDir);
+        }
+        catch(err) {
+            console.log(`Rreaddir error: ${err}`);
+        }
+        
 
         for (const file of files) {
             const fileDataString = await fsPromises.readFile(path.join(autoReportDir, file), { encoding: "utf8" });
