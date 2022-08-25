@@ -1,7 +1,7 @@
 import path from "path";
 import { TestReport } from "./types/test-report";
 import fs from "fs";
-const extract = require('extract-zip')
+import extract from 'extract-zip';
 
 const fsPromises = fs.promises;
 
@@ -15,6 +15,7 @@ export class BL {
         const pathToCSV = path.join(this.autoReportDir, "Report.csv")
         const parentPath = path.resolve(__dirname, '..');
         const autoReportsDir = path.join(parentPath, this.autoReportDir);
+        const tempFilesDir = "files";
 
         const allFiles = await fsPromises.readdir(autoReportsDir, { encoding: "utf8" });
 
@@ -31,12 +32,12 @@ export class BL {
         await fsPromises.writeFile(pathToCSV, `Automation Report\n`);
 
         for (const zipFile of zipFiles) {
-            await fsPromises.mkdir(path.join(autoReportsDir, "files"));
+            await fsPromises.mkdir(path.join(autoReportsDir, tempFilesDir));
 
             try {
                 const zipFilePath = path.join(parentPath, this.autoReportDir, zipFile);
 
-                await extract(zipFilePath, { dir: path.join(parentPath, this.autoReportDir, "files") })
+                await extract(zipFilePath, { dir: path.join(parentPath, this.autoReportDir, tempFilesDir) })
 
                 console.log('\x1b[36m%s\x1b[0m', `Zip extraction of ${zipFilePath} completed successfully`)
             } catch (err) {
@@ -45,9 +46,9 @@ export class BL {
                 throw new Error("unzip error: " + err);
             }
 
-            const groupedTestReports = await this.consolidateTestResults();
+            const groupedTestReports = await this.consolidateTestResults(tempFilesDir);
 
-            const finalReports = await this.GenerateTestReport(groupedTestReports);
+            const finalReports = this.GenerateTestReport(groupedTestReports);
 
             //await fsPromises.writeFile(path.join(this.autoReportDir, "finalReport.json"), JSON.stringify(finalReport));
 
@@ -55,7 +56,7 @@ export class BL {
 
             allResults.push(result);
 
-            await fsPromises.rm(path.join(autoReportsDir, "files"), { recursive: true, force: true });
+            await fsPromises.rm(path.join(autoReportsDir, tempFilesDir), { recursive: true, force: true });
         }
 
         if (allResults.filter(r => r == true).length == zipFiles.length) {
@@ -95,7 +96,7 @@ export class BL {
         return true;
     }
 
-    private async GenerateTestReport(groupedTestReports: TestReport[][]): Promise<Array<TestReport>> {
+    private GenerateTestReport(groupedTestReports: TestReport[][]): Array<TestReport> {
         const finalReport = new Array<TestReport>();
 
         for (const appSuiteGroupTestReports of groupedTestReports) {
@@ -105,11 +106,13 @@ export class BL {
 
             for (const testReport of appSuiteGroupTestReports) {
                 consolidatedTestReport.faildTestList.push(...testReport.faildTestList);
-                consolidatedTestReport.passedTestsNumber += testReport.passedTestsNumber;
             }
-            consolidatedTestReport.failedTestsNumber;
 
-            consolidatedTestReport.totalTestsNumber;
+            consolidatedTestReport.totalTestsNumber =  appSuiteGroupTestReports.reduce((sum, t) => {return sum + t.totalTestsNumber}, 0);
+            
+            consolidatedTestReport.failedTestsNumber = consolidatedTestReport.faildTestList.length;
+            
+            consolidatedTestReport.passedTestsNumber = consolidatedTestReport.totalTestsNumber - consolidatedTestReport.failedTestsNumber;
             
             finalReport.push(consolidatedTestReport);
         }
@@ -117,11 +120,11 @@ export class BL {
         return finalReport;
     }
 
-    private async consolidateTestResults(): Promise<TestReport[][]> {
+    private async consolidateTestResults(tempFilesDir: string): Promise<TestReport[][]> {
         let files = new Array<string>();
         const testReports = new Array<TestReport>();
 
-        const autoReportDir = path.join(this.autoReportDir, "files");
+        const autoReportDir = path.join(this.autoReportDir, tempFilesDir);
 
         try {
             files = await fsPromises.readdir(autoReportDir);
@@ -129,7 +132,6 @@ export class BL {
         catch(err) {
             console.log(`Rreaddir error: ${err}`);
         }
-        
 
         for (const file of files) {
             const fileDataString = await fsPromises.readFile(path.join(autoReportDir, file), { encoding: "utf8" });
@@ -140,7 +142,9 @@ export class BL {
         };
 
 
-        const group = this.groupBy(testReports, t => t.appName && t.suiteName);
+        const group = this.groupBy(testReports, t => t.suiteName);
+
+        //await fsPromises.rm(autoReportDir, { recursive: true, force: true });
 
         return group;
     }
