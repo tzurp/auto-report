@@ -134,7 +134,17 @@ export class BL {
         }
 
         for (const file of files) {
-            const fileDataString = await fsPromises.readFile(path.join(autoReportDir, file), { encoding: "utf8" });
+            let fileDataString: string = "";
+            let filePath = "";
+
+            try {
+                filePath = path.join(autoReportDir, file);
+
+                fileDataString = await fsPromises.readFile(filePath, { encoding: "utf8" });
+            }
+            catch(err) {
+                console.log(`Read file error of ${filePath}: ${err}`);
+            }
 
             const FileData = JSON.parse(fileDataString) as TestReport;
 
