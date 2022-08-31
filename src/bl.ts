@@ -14,10 +14,7 @@ export class BL {
     pathToCSV = path.join(this.autoReportDir, "Report.csv");
 
     async ProcessTestResults(): Promise<void> {
-        const allResults = new Array<boolean>();
-
         const finalReports = new Array<TestReport[]>();
-
 
         const allFiles = await fsPromises.readdir(this.autoReportsDir, { encoding: "utf8" });
 
@@ -41,9 +38,9 @@ export class BL {
 
                 await extract(zipFilePath, { dir: path.join(this.parentPath, this.autoReportDir, this.tempFilesDir) })
 
-                console.log('\x1b[36m%s\x1b[0m', `Zip extraction of '${zipFilePath}' completed successfully (:)`)
+                console.log('\x1b[36m%s\x1b[0m', `Unzip '${zipFilePath}' successful`);
             } catch (err) {
-                console.log('\x1b[31m%s\x1b[0m', "unzip error: " + err);
+                console.log('\x1b[31m%s\x1b[0m', "Unzip error: " + err);
 
                 throw new Error("unzip error: " + err);
             }
@@ -106,7 +103,7 @@ export class BL {
                 }
             }
 
-            console.log('\x1b[32m%s\x1b[0m', `${testReports.indexOf(testReport) + 1}) report for ${testReport[0].appName} exported successfully to the CSV file (:`);
+            console.log('\x1b[32m%s\x1b[0m', `${testReports.indexOf(testReport) + 1}) Report for ${testReport[0].appName.trim()} exported successfully (:`);
         }
     }
 
